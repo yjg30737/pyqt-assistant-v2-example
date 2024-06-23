@@ -14,6 +14,8 @@ Moreover, Assistant V2 now offers streaming! I have applied streaming to this ap
 
 Note: By default, it provides edgar/brka-10k.txt, edgar/goog-10k.pdf, and edgar/aapl-10k.pdf as shown in the OpenAI documentation.
 
+Using SQLite as a database, for saving conversation history.
+
 ## How to Use CUI
 If you find it cumbersome to use the desktop software with GUI, there is also a way to use CUI.
 
