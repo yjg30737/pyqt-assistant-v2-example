@@ -12,7 +12,7 @@ An assistant with the file search feature can have one or more Vector Stores, an
 
 Moreover, Assistant V2 now offers streaming! I have applied streaming to this application, so you can see how the streaming works.
 
-Note: By default, it provides edgar/brka-10k.txt, edgar/goog-10k.pdf, and edgar/aapl-10k.pdf as shown in the OpenAI documentation.
+Note: By default, it provides edgar/brka-10k.txt, edgar/goog-10k.pdf, and edgar/aapl-10k.pdf in the OpenAI documentation.
 
 Using SQLite as a database, for saving conversation history.
 
