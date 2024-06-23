@@ -11,3 +11,6 @@ OpenAI Assistant V2 Manager created with PyQt (focused on File Search functional
 1. pip clone ~
 2. pip install -r requirements.txt
 3. python main.py
+
+## Preview
+* Youtube Video: https://youtu.be/nOldRM7izB8
