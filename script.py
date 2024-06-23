@@ -138,13 +138,29 @@ class GPTAssistantWrapper(GPTWrapper):
 
 
 class GPTAssistantV2Wrapper(GPTAssistantWrapper):
+    """
+    A wrapper class for managing the OpenAI Assistant V2 with enhanced File Search capabilities.
+    """
+
     def __init__(self, api_key=None, db_url='sqlite:///conv.db'):
+        """
+        Initializes the GPTAssistantV2Wrapper.
+
+        :param api_key: API key for authentication.
+        :param db_url: Database URL for storing conversation data.
+        """
         super().__init__(api_key=api_key, db_url=db_url)
         self.__assistant_id = None
         self.__thread_id = None
         self.__assistants = []
 
     def __form_assistant_obj(self, assistant):
+        """
+        Forms a dictionary object representing an assistant.
+
+        :param assistant: Assistant object from the API.
+        :return: Dictionary representing the assistant.
+        """
         obj = {
             "assistant_id": assistant.id,
             "name": assistant.name,
@@ -152,11 +168,16 @@ class GPTAssistantV2Wrapper(GPTAssistantWrapper):
             "tools": assistant.tools,
             "model": assistant.model,
             "created_at": timestamp_to_datetime(assistant.created_at),
-            # "thread": '',
         }
         return obj
 
     def __form_vectorstore_obj(self, vector):
+        """
+        Forms a dictionary object representing a vector store.
+
+        :param vector: Vector store object from the API.
+        :return: Dictionary representing the vector store.
+        """
         obj = {
             "vector_store_id": vector.id,
             "name": vector.name,
@@ -167,6 +188,12 @@ class GPTAssistantV2Wrapper(GPTAssistantWrapper):
         return obj
 
     def __form_files_obj(self, file):
+        """
+        Forms a dictionary object representing a file.
+
+        :param file: File object from the API.
+        :return: Dictionary representing the file.
+        """
         obj = {
             "file_id": file.id,
             "filename": file.filename,
@@ -176,6 +203,13 @@ class GPTAssistantV2Wrapper(GPTAssistantWrapper):
         return obj
 
     def get_assistants(self, order='desc', limit=None):
+        """
+        Retrieves a list of assistants.
+
+        :param order: Order of retrieval, either 'asc' or 'desc'.
+        :param limit: Limit on the number of assistants to retrieve.
+        :return: List of assistants.
+        """
         if self._client is None:
             return None
         assistants = self._client.beta.assistants.list(order=order, limit=limit)
@@ -185,15 +219,12 @@ class GPTAssistantV2Wrapper(GPTAssistantWrapper):
 
     def create_assistant(self, args):
         """
-        Doesn't use it unless it is necessary
-        :param args:
-        :return:
+        Creates a new assistant.
+
+        :param args: Arguments for creating the assistant.
+        :return: Dictionary representing the newly created assistant.
         """
         assistant = self._client.beta.assistants.create(
-            # name="Financial Analyst Assistant",
-            # instructions="You are an expert financial analyst. Use you knowledge base to answer questions about audited financial statements.",
-            # model="gpt-4o",
-            # tools=[{"type": "file_search"}],
             **args
         )
 
@@ -204,33 +235,31 @@ class GPTAssistantV2Wrapper(GPTAssistantWrapper):
         return assistant
 
     def set_current_assistant(self, assistant_id):
+        """
+        Sets the current assistant by ID.
+
+        :param assistant_id: ID of the assistant to set as current.
+        """
         self.__assistant_id = assistant_id
         self.__set_current_thread()
 
     def delete_assistant(self, assistant_id):
+        """
+        Deletes an assistant by ID.
+
+        :param assistant_id: ID of the assistant to delete.
+        """
         self._client.beta.assistants.delete(assistant_id=assistant_id)
 
     def __set_current_thread(self, messages=None):
-        # thread = self._db_handler.query_table(Thread, {"name": name, "assistant_id": self.__assistant_id})
-        # if thread:
-        #     print(f"Thread {name} already exists")
-        #     self.__thread_id = thread[0].thread_id
-        # else:
+        """
+        Sets the current thread for the assistant.
+
+        :param messages: Optional initial messages for the thread.
+        :return: Thread object.
+        """
         if messages:
-            # Import the messages from others
-            thread = self._client.beta.threads.create(
-                # messages=[
-                #     {
-                #         "role": "user",
-                #         "content": "How many shares of AAPL were outstanding at the end of of October 2023?",
-                #         # Attach the new file to the message.
-                #         "attachments": [
-                #             {"file_id": message_file.id, "tools": [{"type": "file_search"}]}
-                #         ],
-                #     }
-                # ]
-                messages=messages
-            )
+            thread = self._client.beta.threads.create(messages=messages)
         else:
             thread = self._client.beta.threads.create()
         self.__thread_id = thread.id
@@ -238,15 +267,21 @@ class GPTAssistantV2Wrapper(GPTAssistantWrapper):
             if assistant["assistant_id"] == self.__assistant_id:
                 assistant["thread"] = self.__thread_id
                 break
-        # self._db_handler.append(Thread, thread_obj)
         return thread
 
     def send_message(self, message_str, instructions='', message_file=None, assistant_id=None, thread_id=None):
+        """
+        Sends a message to the assistant and handles streaming responses.
+
+        :param message_str: The message content.
+        :param instructions: Additional instructions for the assistant.
+        :param message_file: Optional file to attach to the message.
+        :param assistant_id: ID of the assistant to use.
+        :param thread_id: ID of the thread to use.
+        :yield: Streamed text responses.
+        """
         user_obj = self.get_message_obj("user", message_str)
         self._db_handler.append(Conversation, user_obj)
-        # Then, we use the stream SDK helper
-        # with the EventHandler class to create the Run
-        # and stream the response.
         args = {
             'thread_id': thread_id if thread_id else self.__thread_id,
             'role': "user",
@@ -258,9 +293,7 @@ class GPTAssistantV2Wrapper(GPTAssistantWrapper):
                 {"file_id": message_file.id, "tools": [{"type": "file_search"}]}
             ]
 
-        self._client.beta.threads.messages.create(
-            **args,
-        )
+        self._client.beta.threads.messages.create(**args)
 
         response = ''
 
@@ -270,13 +303,6 @@ class GPTAssistantV2Wrapper(GPTAssistantWrapper):
                 instructions=instructions,
                 event_handler=self.EventHandler(self._client),
         ) as stream:
-            # Iterate over all the streamed events
-            # for event in stream:
-            #     # Print the text from text delta events
-            #     if event.event == "thread.message.delta" and event.data.delta.content:
-            #         yield event.data.delta.content[0].text.value
-
-            # Iterate over all texts
             for text in stream.text_deltas:
                 response += text
                 yield text
@@ -285,26 +311,25 @@ class GPTAssistantV2Wrapper(GPTAssistantWrapper):
         self._db_handler.append(Conversation, ai_obj)
 
     def create_vector_store(self, args):
-        vector_store = self._client.beta.vector_stores.create(
-            **args
-        )
+        """
+        Creates a new vector store.
 
+        :param args: Arguments for creating the vector store.
+        :return: Dictionary representing the newly created vector store.
+        """
+        vector_store = self._client.beta.vector_stores.create(**args)
         vector_store = self.__form_vectorstore_obj(vector_store)
-
         return vector_store
 
     def upload_files_to_vector_store(self, vector_store_id, file_paths):
         """
-        Upload local files to the vector store.
-        :param vector_store_id:
-        :param file_paths:
-        :return:
-        """
-        # Ready the files for upload to OpenAI
-        file_streams = [open(path, "rb") for path in file_paths]
+        Uploads local files to the vector store.
 
-        # Use the upload and poll SDK helper to upload the files, add them to the vector store,
-        # and poll the status of the file batch for completion.
+        :param vector_store_id: ID of the vector store.
+        :param file_paths: List of file paths to upload.
+        :return: Dictionary representing the uploaded files.
+        """
+        file_streams = [open(path, "rb") for path in file_paths]
         file_batch = self._client.beta.vector_stores.file_batches.upload_and_poll(
                 vector_store_id=vector_store_id, files=file_streams
         )
@@ -314,63 +339,61 @@ class GPTAssistantV2Wrapper(GPTAssistantWrapper):
         return result_obj
 
     def delete_vector_store(self, vector_store_id):
+        """
+        Deletes a vector store by ID.
+
+        :param vector_store_id: ID of the vector store to delete.
+        """
         self._client.beta.vector_stores.delete(vector_store_id=vector_store_id)
 
     def delete_files_from_vector_store(self, vector_store_id, file_id):
         """
-        Delete a file from the vector store
-        :param file_id:
-        :return:
+        Deletes a file from the vector store.
+
+        :param vector_store_id: ID of the vector store.
+        :param file_id: ID of the file to delete.
         """
-        self._client.beta.vector_stores.files.delete(
-            vector_store_id=vector_store_id,
-            file_id=file_id
-        )
+        self._client.beta.vector_stores.files.delete(vector_store_id=vector_store_id, file_id=file_id)
 
     def update_assistant(self, tool_resources, assistant_id=None):
+        """
+        Updates an assistant's tool resources.
+
+        :param tool_resources: Tool resources to update.
+        :param assistant_id: Optional assistant ID.
+        :return: Updated assistant object.
+        """
         assistant = self._client.beta.assistants.update(
             assistant_id=assistant_id if assistant_id else self.__assistant_id,
             tool_resources=tool_resources
         )
-
         return assistant
 
     def delete_file(self, file_id):
         """
-        Delete file from your OpenAI files storage.
-        It deletes file in every vector store.
-        :return:
+        Deletes a file from OpenAI files storage. It deletes the file in every vector store.
+
+        :param file_id: ID of the file to delete.
         """
         self._client.files.delete(file_id=file_id)
 
     def get_vector_stores(self, assistant_id=None):
         """
-        Get vector stores in assistant.
-        :param assistant_id:
-        :return:
+        Retrieves vector stores in the assistant.
+
+        :param assistant_id: Optional assistant ID.
+        :return: List of vector stores.
         """
         vs_obj_lst = []
 
         assistant_id = assistant_id if assistant_id else self.__assistant_id
 
-        # Get the vector store's IDs
         tool_resources = self._client.beta.assistants.retrieve(assistant_id=assistant_id).dict()['tool_resources']
         if tool_resources:
             file_search = tool_resources['file_search']
             if file_search:
                 vs_ids = file_search['vector_store_ids']
                 for vs_id in vs_ids:
-                    # id='vs_01F9'
-                    # created_at=1718679193
-                    # file_counts=FileCounts(cancelled=0
-                    # completed=2
-                    # failed=0
-                    # in_progress=0
-                    # total=2)
-                    # last_active_at=1718679204
-                    # metadata={}
-                    # name='Financial Statements'
-                    # object='vector_store', status='completed', usage_bytes=1406551, expires_after=None, expires_at=None)
                     vs_instance = self._client.beta.vector_stores.retrieve(vector_store_id=vs_id)
                     vs_obj_lst.append(self.__form_vectorstore_obj(vs_instance))
 
@@ -378,15 +401,14 @@ class GPTAssistantV2Wrapper(GPTAssistantWrapper):
 
     def get_vector_store_files(self, vector_store_id):
         """
-        Get vector store files.
-        :param vector_store_id:
-        :return:
+        Retrieves files in a vector store.
+
+        :param vector_store_id: ID of the vector store.
+        :return: List of files in the vector store.
         """
         files_lst = []
 
-        vector_store_files = self._client.beta.vector_stores.files.list(
-            vector_store_id=vector_store_id
-        )
+        vector_store_files = self._client.beta.vector_stores.files.list(vector_store_id=vector_store_id)
         for file in vector_store_files:
             file = self._client.files.retrieve(file_id=file.id)
             files_lst.append(self.__form_files_obj(file))
@@ -394,32 +416,70 @@ class GPTAssistantV2Wrapper(GPTAssistantWrapper):
         return files_lst
 
     def clear_messages(self):
+        """
+        Clears all messages from the conversation database.
+        """
         self._db_handler.delete(Conversation, None)
 
     # Declaration as an inner class
     class EventHandler(AssistantEventHandler):
+        """
+        Event handler class for handling assistant events.
+        """
+
         def __init__(self, client):
+            """
+            Initializes the EventHandler.
+
+            :param client: The client instance.
+            """
             super().__init__()
             self._client = client
 
         def on_text_created(self, text) -> None:
+            """
+            Handles the event when text is created.
+
+            :param text: The created text.
+            """
             print(f"\nassistant onTextCreated > ", end="", flush=True)
 
         def on_text_delta(self, delta, snapshot):
+            """
+            Handles the event when there is a text delta.
+
+            :param delta: The text delta.
+            :param snapshot: The snapshot of the current state.
+            """
             print(delta.value, end="", flush=True)
 
         def on_tool_call_created(self, tool_call):
+            """
+            Handles the event when a tool call is created.
+
+            :param tool_call: The created tool call.
+            """
             print(f"\nassistant onToolCallCreated > {tool_call.type}\n", flush=True)
 
         def on_tool_call_delta(self, delta, snapshot):
+            """
+            Handles the event when there is a tool call delta.
+
+            :param delta: The tool call delta.
+            :param snapshot: The snapshot of the current state.
+            """
             if delta.type == 'code_interpreter':
                 pass
             elif delta.type == 'file_search':
                 print(f"\nassistant > {delta.type}\n", flush=True)
 
         def on_message_done(self, message) -> None:
+            """
+            Handles the event when a message is done.
+
+            :param message: The completed message.
+            """
             print('Message done')
-            # # print a citation to the file searched
             message_content = message.content[0].text
             annotations = message_content.annotations
             citations = []
@@ -433,6 +493,7 @@ class GPTAssistantV2Wrapper(GPTAssistantWrapper):
 
             print(message_content.value)
             print("\n".join(citations))
+
 
 # API_KEY = 'sk-...'
 
